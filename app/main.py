@@ -1,26 +1,44 @@
 from fastapi import FastAPI, Response, status
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
-from app.repositories.users_repository import UserRepository, build_seed_users
+from app.core.config import get_settings
+from app.db.base import init_db
+from app.db.session import SessionLocal
+from app.routers.roles_router import role_router
 from app.routers.users_router import user_router
 
 
-app = FastAPI(title="PharmaHub API", description="API for pharmaceutical management", version="1.0.0")
-app.state.user_repository = UserRepository(seed_users=build_seed_users())
+settings = get_settings()
+app = FastAPI(title=settings.app_name, description="API for pharmaceutical management", version="1.0.0")
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    init_db()
+
 
 app.include_router(user_router)
+app.include_router(role_router)
 
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to PharmaHub API"}
+    return {"message": f"Welcome to {settings.app_name}", "environment": settings.environment}
 
 
-@app.get("/health")
-def health_check(response: Response):
-    db_healthy = True
+@app.get("/health/live")
+def liveness_check():
+    return {"status": "alive"}
 
-    if not db_healthy:
+
+@app.get("/health/ready")
+def readiness_check(response: Response):
+    try:
+        with SessionLocal() as session:
+            session.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "unhealthy", "reason": "DB connection failed"}
+        return {"status": "unhealthy", "reason": str(exc)}
 
     return {"status": "healthy"}
