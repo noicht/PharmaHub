@@ -1,0 +1,17 @@
+steps:
+  - name: 'python:3.12'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r requirements.txt
+        python -m unittest discover -s app/tests/unit -p "test_*.py"
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/pharmahub/pharmahub:$COMMIT_SHA', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/pharmahub/pharmahub:$COMMIT_SHA']
+
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/pharmahub/pharmahub:$COMMIT_SHA'
